@@ -9,8 +9,7 @@ from typing import Tuple
 from epidemic_env.env import Env
 
 
-Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
+Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
 
 
 class ReplayMemory(object):
@@ -115,6 +114,10 @@ class DQNAgent(Agent):
         self.gamma = gamma
         self.lr = lr
         
+    def load_model(self, savepath:str): pass
+        
+    def save_model(self, savepath:str): pass
+        
     def optimize_model(self):
         if len(self.memory) < self.batch_size:
                 return np.double(0)
@@ -167,9 +170,10 @@ class DQNAgent(Agent):
     def act(self, state):
         epsilon = self.epsilon
         sample = random.random()
-        
+        print(self.model(state))
         if sample > epsilon:
             with torch.no_grad():
+                
                 return self.model(state).max(1)[1].view(1, 1)
         else:
             return torch.tensor([[self.env.action_space.sample()]], device=self.device, dtype=torch.long)
