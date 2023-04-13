@@ -102,11 +102,12 @@ class DQNAgent(Agent):
             'n_actions': env.action_space.n,
         }
         
-        self.model = model(**model_params)
-        self.targetnet = model(**model_params)
+        self.policy_net = model(**model_params)
+        self.target_net = model(**model_params)
+        self.target_net.load_state_dict(self.policy_net.state_dict())
 
         self.criterion = criterion
-        self.optimizer = optim.AdamW(self.model.parameters(), lr=lr, amsgrad=True)
+        self.optimizer = optim.AdamW(self.policy_net.parameters(), lr=lr, amsgrad=True)
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.memory = ReplayMemory(buffer_size)
         self.batch_size = batch_size
@@ -139,7 +140,7 @@ class DQNAgent(Agent):
         # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
         # columns of actions taken. These are the actions which would've been taken
         # for each batch state according to policy_net
-        state_action_values = self.model(state_batch).gather(1, action_batch.unsqueeze(1))
+        state_action_values = self.policy_net(state_batch).gather(1, action_batch.unsqueeze(1))
 
         # Compute V(s_{t+1}) for all next states.
         # Expected values of actions for non_final_next_states are computed based
@@ -148,7 +149,7 @@ class DQNAgent(Agent):
         # state value or 0 in case the state was final.
         next_state_values = torch.zeros(self.batch_size, device=self.device)
         with torch.no_grad():
-            next_state_values[non_final_mask] = self.targetnet(non_final_next_states).max(1)[0]
+            next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(1)[0]
         # Compute the expected Q values
         expected_state_action_values = (next_state_values * self.gamma) + reward_batch
 
@@ -159,7 +160,7 @@ class DQNAgent(Agent):
         self.optimizer.zero_grad()
         loss.backward()
         # In-place gradient clipping
-        torch.nn.utils.clip_grad_value_(self.model.parameters(), 100)
+        torch.nn.utils.clip_grad_value_(self.policy_net.parameters(), 100)
         self.optimizer.step()
         
         return loss
@@ -170,10 +171,8 @@ class DQNAgent(Agent):
     def act(self, state):
         epsilon = self.epsilon
         sample = random.random()
-        print(self.model(state))
         if sample > epsilon:
             with torch.no_grad():
-                
-                return self.model(state).max(1)[1].view(1, 1)
+                return self.policy_net(state)[0][0][0].max()
         else:
             return torch.tensor([[self.env.action_space.sample()]], device=self.device, dtype=torch.long)
