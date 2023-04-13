@@ -84,6 +84,7 @@ class Agent(ABC):
             Tuple[int, float]: the selected action (as an int) and associated Q/V-value as a float
         """
 
+
 class DQNAgent(Agent):
     def __init__(self,  env:Env,
                  model:torch.nn,
@@ -95,16 +96,14 @@ class DQNAgent(Agent):
                  batch_size:int=2048)->None:
 
         self.env = env
-        state, info = self.env.reset()
 
         model_params = {
-            'n_observations': len(state),
+            'n_observations': 189,
             'n_actions': env.action_space.n,
         }
         
         self.policy_net = model(**model_params)
         self.target_net = model(**model_params)
-        self.target_net.load_state_dict(self.policy_net.state_dict())
 
         self.criterion = criterion
         self.optimizer = optim.AdamW(self.policy_net.parameters(), lr=lr, amsgrad=True)
@@ -114,21 +113,19 @@ class DQNAgent(Agent):
         self.epsilon = epsilon
         self.gamma = gamma
         self.lr = lr
-        
+
     def load_model(self, savepath:str): pass
-        
+
     def save_model(self, savepath:str): pass
-        
+
     def optimize_model(self):
         if len(self.memory) < self.batch_size:
                 return np.double(0)
-            
         transitions = self.memory.sample(self.batch_size)
         # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
         # detailed explanation). This converts batch-array of Transitions
         # to Transition of batch-arrays.
         batch = Transition(*zip(*transitions))
-
         # Compute a mask of non-final states and concatenate the batch elements
         # (a final state would've been the one after which simulation ended)
         non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=self.device, dtype=torch.bool)
@@ -136,11 +133,15 @@ class DQNAgent(Agent):
         state_batch = torch.cat(batch.state)
         action_batch = torch.cat(batch.action)
         reward_batch = torch.cat(batch.reward)
+        # action_batch = torch.tensor([e for e in batch.action])
+        # print(batch.action)
+        # print(action_batch.unsqueeze(1))
+        # print(self.policy_net(state_batch).gather(action_batch))
 
         # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
         # columns of actions taken. These are the actions which would've been taken
         # for each batch state according to policy_net
-        state_action_values = self.policy_net(state_batch).gather(1, action_batch.unsqueeze(1))
+        state_action_values = self.policy_net(state_batch).gather(1, action_batch)
 
         # Compute V(s_{t+1}) for all next states.
         # Expected values of actions for non_final_next_states are computed based
@@ -162,17 +163,16 @@ class DQNAgent(Agent):
         # In-place gradient clipping
         torch.nn.utils.clip_grad_value_(self.policy_net.parameters(), 100)
         self.optimizer.step()
-        
         return loss
-    
+
     def reset():
         pass
-    
+
     def act(self, state):
         epsilon = self.epsilon
         sample = random.random()
         if sample > epsilon:
             with torch.no_grad():
-                return self.policy_net(state)[0][0][0].max()
+                return self.policy_net(state).max(1)[1].view(1, 1)
         else:
             return torch.tensor([[self.env.action_space.sample()]], device=self.device, dtype=torch.long)
