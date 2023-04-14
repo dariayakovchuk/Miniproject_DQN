@@ -93,7 +93,9 @@ class DQNAgent(Agent):
                  epsilon:float=0.7,
                  gamma:float=0.9,
                  buffer_size:int=20000,
-                 batch_size:int=2048)->None:
+                 batch_size:int=2048,
+                 n_episodes:int=500, 
+                 epsilon_min:float=0.3)->None:
 
         self.env = env
 
@@ -111,8 +113,10 @@ class DQNAgent(Agent):
         self.memory = ReplayMemory(buffer_size)
         self.batch_size = batch_size
         self.epsilon = epsilon
+        self.epsilon_min = epsilon_min
         self.gamma = gamma
         self.lr = lr
+        self.T_max = n_episodes
 
     def load_model(self, savepath:str): pass
 
@@ -167,8 +171,10 @@ class DQNAgent(Agent):
     def reset():
         pass
 
-    def act(self, state):
+    def act(self, state, time, decreasing = False):
         epsilon = self.epsilon
+        if decreasing:
+            epsilon = max(self.epsilon * (self.T_max - time) / self.T_max, self.epsilon_min)
         sample = random.random()
         if sample > epsilon:
             with torch.no_grad():
