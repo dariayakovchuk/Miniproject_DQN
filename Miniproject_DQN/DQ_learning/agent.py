@@ -118,7 +118,7 @@ class DQNAgent(Agent):
 
     def save_model(self, savepath:str): pass
 
-    def optimize_model(self):
+    def optimize_model(self, update = True):
         if len(self.memory) < self.batch_size:
                 return np.double(0)
         transitions = self.memory.sample(self.batch_size)
@@ -133,10 +133,6 @@ class DQNAgent(Agent):
         state_batch = torch.cat(batch.state)
         action_batch = torch.cat(batch.action)
         reward_batch = torch.cat(batch.reward)
-        # action_batch = torch.tensor([e for e in batch.action])
-        # print(batch.action)
-        # print(action_batch.unsqueeze(1))
-        # print(self.policy_net(state_batch).gather(action_batch))
 
         # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
         # columns of actions taken. These are the actions which would've been taken
@@ -149,8 +145,11 @@ class DQNAgent(Agent):
         # This is merged based on the mask, such that we'll have either the expected
         # state value or 0 in case the state was final.
         next_state_values = torch.zeros(self.batch_size, device=self.device)
-        with torch.no_grad():
+        if update: 
             next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(1)[0]
+        else: 
+            with torch.no_grad():
+                next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(1)[0]
         # Compute the expected Q values
         expected_state_action_values = (next_state_values * self.gamma) + reward_batch
 
