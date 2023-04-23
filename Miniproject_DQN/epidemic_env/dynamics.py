@@ -144,7 +144,7 @@ class ModelDynamics():
                 pos=self.pos_map,
                 node_size=[self.map.nodes[n]['pop'] /
                            1000 for n in self.map.nodes()],
-                width=[self.map.edges[e]['tau']*0.0005 for e in self.map.edges()]
+                width=[self.map.edges[e]['tau']*10 for e in self.map.edges()]
                 )
 
     def epidemic_parameters(self, day=None)->Tuple[Dict[str,float],Dict[str,Dict[str,float]]]:
