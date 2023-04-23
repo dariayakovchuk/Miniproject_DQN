@@ -1,3 +1,4 @@
+from ssl import ALERT_DESCRIPTION_PROTOCOL_VERSION
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -100,7 +101,7 @@ class DQNAgent(Agent):
         self.env = env
 
         model_params = {
-            'n_observations': 189,
+            'n_observations': len(env.observation_space.sample().flatten()),
             'n_actions': env.action_space.n,
         }
         
@@ -203,7 +204,7 @@ class DQNAgent_Factorize(Agent):
         self.env = env
         
         model_params = {
-            'n_observations': 189,
+            'n_observations': len(env.observation_space.sample().flatten()),
             'n_actions': 4*2,
         }
         
@@ -239,13 +240,14 @@ class DQNAgent_Factorize(Agent):
         non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=self.device, dtype=torch.bool)
         non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
         state_batch = torch.cat(batch.state)
-        action_batch = torch.cat(batch.action)
+        # action_batch = torch.cat(batch.action)
+        action_batch = torch.cat([e for e in batch.action], axis=0)
         reward_batch = torch.cat(batch.reward)
 
         # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
         # columns of actions taken. These are the actions which would've been taken
         # for each batch state according to policy_net
-        state_action_values = torch.sum(self.policy_net(state_batch).gather(1, action_batch), axis=2)
+        state_action_values = torch.sum(self.policy_net(state_batch).gather(2, action_batch.unsqueeze(2)), axis=1)
 
         # Compute V(s_{t+1}) for all next states.
         # Expected values of actions for non_final_next_states are computed based
@@ -254,10 +256,10 @@ class DQNAgent_Factorize(Agent):
         # state value or 0 in case the state was final.
         next_state_values = torch.zeros(self.batch_size, device=self.device)
         if update: 
-            next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(1)[0]
+            next_state_values[non_final_mask] = torch.sum(self.target_net(non_final_next_states).max(2)[0], axis=1)
         else: 
             with torch.no_grad():
-                next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(1)[0]
+                next_state_values[non_final_mask] = torch.sum(self.target_net(non_final_next_states).max(2)[0], axis=1)
         # Compute the expected Q values
         expected_state_action_values = (next_state_values * self.gamma) + reward_batch
 
@@ -282,6 +284,11 @@ class DQNAgent_Factorize(Agent):
         sample = random.random()
         if sample > epsilon:
             with torch.no_grad():
-                return self.policy_net(state).max(1)[1].view(1, 1)
+                output = torch.argmax(self.policy_net(state)[0], axis = 1)
+                return output.to(dtype=torch.int64)
         else:
-            return torch.tensor([[self.env.action_space.sample()]], device=self.device, dtype=torch.long)
+            output = torch.zeros((4))
+            action = self.env.action_space.sample()
+            if action != 0:
+              output[action-1] = 1
+            return output.to(dtype=torch.int64)
